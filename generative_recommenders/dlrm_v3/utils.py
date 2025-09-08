@@ -52,22 +52,30 @@ logger = logging.getLogger("utils")
 
 def _on_trace_ready_fn(
     rank: Optional[int] = None,
+    trace_dir: Optional[str] = None,
 ) -> Callable[[torch.profiler.profile], None]:
     def handle_fn(p: torch.profiler.profile) -> None:
-        bucket_name = "hammer_gpu_traces"
         pid = os.getpid()
         rank_str = f"_rank_{rank}" if rank is not None else ""
         file_name = f"libkineto_activities_{pid}_{rank_str}.json"
-        manifold_path = "tree/dlrm_v3_bench"
-        target_object_name = manifold_path + "/" + file_name + ".gz"
-        path = f"manifold://{bucket_name}/{manifold_path}/{file_name}"
+        
+        # Use configurable trace directory or default to temp
+        if trace_dir is None:
+            import tempfile
+            output_dir = os.path.join(tempfile.gettempdir(), "torch_traces")
+        else:
+            output_dir = trace_dir
+            
+        os.makedirs(output_dir, exist_ok=True)
+        path = os.path.join(output_dir, file_name)
+        
         logger.warning(
             p.key_averages(group_by_input_shape=True).table(
                 sort_by="self_cuda_time_total"
             )
         )
         logger.warning(
-            f"trace url: https://www.internalfb.com/intern/perfdoctor/trace_view?filepath={target_object_name}&bucket={bucket_name}"
+            f"Trace saved to local path: {path}"
         )
         p.export_chrome_trace(path)
 
