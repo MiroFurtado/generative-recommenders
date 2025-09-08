@@ -1,5 +1,5 @@
 batch_size = 16
-dataset = "movielens-20m"
+dataset = "debug"
 
 # model parameters
 make_model.dataset = %dataset
@@ -24,12 +24,10 @@ sparse_optimizer_factory_and_class.betas = (0.95, 0.999)
 make_train_test_dataloaders.batch_size = %batch_size
 make_train_test_dataloaders.dataset_type = %dataset
 make_train_test_dataloaders.train_split_percentage = 0.75
-make_train_test_dataloaders.new_path_prefix = "/root/haikus/tritonology/external/generative-recommenders/tmp"
-make_train_test_dataloaders.num_workers = 2
-make_train_test_dataloaders.prefetch_factor = 4
 
 # train loop variables
-train_loop.num_epochs = 5
+train_loop.num_batches = 10
+train_loop.num_epochs = 1000
 train_loop.output_trace = True
 train_loop.metric_log_frequency = 10
 
@@ -38,6 +36,6 @@ MetricsLogger.tensorboard_log_path = "/tmp/tensorboard_log_path.log"
 
 # wandb configuration (enabled)
 MetricsLogger.use_wandb = True
-MetricsLogger.wandb_project = "generative-recommenders-movielens"
-MetricsLogger.wandb_run_name = "movielens-20m-baseline"
-MetricsLogger.wandb_tags = ["movielens-20m", "dlrm_v3", "20m-dataset"]
+MetricsLogger.wandb_project = "generative-recommenders-debug"
+MetricsLogger.wandb_run_name = "debug-wandb-run"
+MetricsLogger.wandb_tags = ["debug", "dlrm_v3", "wandb-enabled"]

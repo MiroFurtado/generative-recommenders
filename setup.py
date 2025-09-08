@@ -27,6 +27,7 @@ setup(
         "gin_config>=0.5.0",
         "pandas>=2.2.0",
         "tensorboard>=2.19.0",
+        "wandb>=0.16.0",
         "pybind11",
         "click",
         "pandas",

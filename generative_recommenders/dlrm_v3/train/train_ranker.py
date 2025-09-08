@@ -44,6 +44,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 SUPPORTED_CONFIGS = {
     "debug": "debug.gin",
+    "debug-wandb": "debug_wandb.gin",
     "kuairand-1k": "kuairand_1k.gin",
     "movielens-1m": "movielens_1m.gin",
     "movielens-20m": "movielens_20m.gin",
@@ -115,8 +116,13 @@ def _main_func(
             )
     except Exception as e:
         logger.info(traceback.format_exc())
+        # Properly cleanup wandb before re-raising the exception
+        metrics.finish_wandb()
         cleanup()
         raise Exception(e)
+    finally:
+        # Always finish wandb run at the end
+        metrics.finish_wandb()
 
 
 def get_args():  # pyre-ignore [3]

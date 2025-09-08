@@ -124,6 +124,26 @@ CFLAGS="-std=c++14 -O3" python -m pip install .
 LOCAL_WORLD_SIZE=4 WORLD_SIZE=4 python3 generative_recommenders/dlrm_v3/inference/main.py --dataset debug
 ```
 
+## Experiment Tracking with Weights & Biases
+
+This repository includes built-in support for [Weights & Biases (wandb)](https://wandb.ai/) for experiment tracking and logging. 
+
+### Quick Start with wandb
+
+1. **Install wandb**: `pip install wandb`
+2. **Login**: `wandb login`
+3. **Enable in config**: Set `MetricsLogger.use_wandb = True` in your gin configuration file
+4. **Run training**: Use any existing training command
+
+### Example with wandb enabled
+
+```bash
+# Train with wandb logging enabled
+LOCAL_WORLD_SIZE=4 WORLD_SIZE=4 python3 generative_recommenders/dlrm_v3/train/train_ranker.py --dataset debug-wandb --mode train
+```
+
+For detailed wandb configuration options, usage examples, and best practices, see [WANDB_README.md](WANDB_README.md).
+
 ## License
 This codebase is Apache 2.0 licensed, as found in the [LICENSE](LICENSE) file.
 

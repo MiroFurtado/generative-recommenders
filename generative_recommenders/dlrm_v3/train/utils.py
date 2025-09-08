@@ -359,7 +359,7 @@ def train_loop(
                 labels=mt_target_labels,
                 weights=mt_target_weights,
             )
-            if batch_idx % metric_log_frequency != 0:
+            if batch_idx % metric_log_frequency == 0:
                 metric_logger.compute_and_log(
                     mode="train",
                     additional_logs={

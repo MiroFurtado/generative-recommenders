@@ -46,6 +46,13 @@ from torchrec.metrics.ne import NEMetricComputation
 
 from torchrec.metrics.rec_metric import RecMetricComputation
 
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+    wandb = None
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("utils")
 
@@ -129,6 +136,13 @@ class MetricsLogger:
         device: torch.device,
         rank: int,
         tensorboard_log_path: str = "",
+        # Wandb configuration
+        use_wandb: bool = False,
+        wandb_project: str = "generative-recommenders",
+        wandb_entity: Optional[str] = None,
+        wandb_run_name: Optional[str] = None,
+        wandb_tags: Optional[List[str]] = None,
+        wandb_config: Optional[Dict] = None,
     ) -> None:
         self.multitask_configs: List[TaskConfig] = multitask_configs
         all_classification_tasks: List[str] = [
@@ -193,10 +207,54 @@ class MetricsLogger:
                 )
 
         self.global_step: Dict[str, int] = {"train": 0, "eval": 0}
+        
+        # Initialize TensorBoard logger
         self.tb_logger: Optional[SummaryWriter] = None
         if tensorboard_log_path != "":
             self.tb_logger = SummaryWriter(log_dir=tensorboard_log_path, purge_step=0)
             self.tb_logger.flush()
+        
+        # Initialize Wandb logger
+        self.use_wandb = use_wandb and WANDB_AVAILABLE
+        if self.use_wandb and rank == 0:  # Only log from rank 0 to avoid duplicate logs
+            if not WANDB_AVAILABLE:
+                logger.warning("wandb is not available. Install wandb to enable logging.")
+                self.use_wandb = False
+            else:
+                try:
+                    # Prepare wandb config
+                    config = {
+                        "batch_size": batch_size,
+                        "window_size": window_size,
+                        "num_tasks": len(self.task_names),
+                        "task_names": self.task_names,
+                        "multitask_configs": [
+                            {
+                                "task_name": task.task_name,
+                                "task_type": task.task_type.value if hasattr(task.task_type, 'value') else str(task.task_type),
+                            }
+                            for task in multitask_configs
+                        ],
+                    }
+                    if wandb_config:
+                        config.update(wandb_config)
+                    
+                    wandb.init(
+                        project=wandb_project,
+                        entity=wandb_entity,
+                        name=wandb_run_name,
+                        tags=wandb_tags,
+                        config=config,
+                        reinit=True,
+                    )
+                    logger.info(f"Initialized wandb logging for project: {wandb_project}")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize wandb: {e}. Continuing without wandb logging.")
+                    self.use_wandb = False
+        else:
+            if self.use_wandb and rank != 0:
+                logger.info(f"Rank {rank}: wandb logging disabled for non-zero ranks to avoid duplicates")
+            self.use_wandb = False
 
     @property
     def all_metrics(self) -> Dict[str, List[RecMetricComputation]]:
@@ -241,28 +299,63 @@ class MetricsLogger:
         mode: str = "train",
         additional_logs: Optional[Dict[str, Dict[str, torch.Tensor]]] = None,
     ) -> Dict[str, float]:
-        assert self.tb_logger is not None
         all_computed_metrics = self.compute(mode)
-        for k, v in all_computed_metrics.items():
-            self.tb_logger.add_scalar(  # pyre-ignore [16]
-                f"{mode}_{k}",
-                v,
-                global_step=self.global_step[mode],
-            )
+        
+        # Log to TensorBoard
+        if self.tb_logger is not None:
+            for k, v in all_computed_metrics.items():
+                self.tb_logger.add_scalar(  # pyre-ignore [16]
+                    f"{mode}_{k}",
+                    v,
+                    global_step=self.global_step[mode],
+                )
 
-        if additional_logs is not None:
-            for tag, data in additional_logs.items():
-                for data_name, data_value in data.items():
-                    self.tb_logger.add_scalar(
-                        f"{tag}/{mode}_{data_name}",
-                        data_value.detach().clone().cpu(),
-                        global_step=self.global_step[mode],
-                    )
+            if additional_logs is not None:
+                for tag, data in additional_logs.items():
+                    for data_name, data_value in data.items():
+                        self.tb_logger.add_scalar(
+                            f"{tag}/{mode}_{data_name}",
+                            data_value.detach().clone().cpu(),
+                            global_step=self.global_step[mode],
+                        )
+        
+        # Log to Wandb
+        if self.use_wandb and wandb is not None:
+            wandb_logs = {}
+            
+            # Log metrics with mode prefix
+            for k, v in all_computed_metrics.items():
+                wandb_logs[f"{mode}_{k}"] = v
+            
+            # Log additional logs
+            if additional_logs is not None:
+                for tag, data in additional_logs.items():
+                    for data_name, data_value in data.items():
+                        wandb_logs[f"{tag}/{mode}_{data_name}"] = data_value.detach().clone().cpu().item()
+            
+            # Add step information
+            wandb_logs["step"] = self.global_step[mode]
+            wandb_logs[f"{mode}_step"] = self.global_step[mode]
+            
+            try:
+                wandb.log(wandb_logs, step=self.global_step[mode])
+            except Exception as e:
+                logger.warning(f"Failed to log to wandb: {e}")
+                
         return all_computed_metrics
 
     def reset(self, mode: str = "train"):
         for metric in self.all_metrics[mode]:
             metric.reset()
+    
+    def finish_wandb(self):
+        """Finish the wandb run"""
+        if self.use_wandb and wandb is not None:
+            try:
+                wandb.finish()
+                logger.info("Finished wandb run")
+            except Exception as e:
+                logger.warning(f"Failed to finish wandb run: {e}")
 
 
 # the datasets we support

@@ -33,3 +33,9 @@ train_loop.metric_log_frequency = 10
 
 # logger variables
 MetricsLogger.tensorboard_log_path = "/tmp/tensorboard_log_path.log"
+
+# wandb configuration (optional - set use_wandb = True to enable)
+MetricsLogger.use_wandb = False
+MetricsLogger.wandb_project = "generative-recommenders-debug"
+MetricsLogger.wandb_run_name = "debug-run"
+MetricsLogger.wandb_tags = ["debug", "dlrm_v3"]
